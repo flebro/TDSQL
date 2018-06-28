@@ -4,13 +4,28 @@
 USE ANOPB_DB
 GO
 
-CREATE TRIGGER TR_StundentInterest_EnforceMaxRowsByStudent ON StudentInterest 
-	FOR INSERT
-AS 
+IF EXISTS (SELECT TOP(1) 1 FROM sys.triggers WHERE name = 'TR_StundentInterest_EnforceMaxRowsByStudent')
 BEGIN
-	DECLARE @maxInterestCount TINYINT = 5
-	IF (SELECT COUNT(*) FROM StudentInterest WHERE Student_Id = (SELECT Student_Id FROM INSERTED)) <= @maxInterestCount
+	DROP TRIGGER TR_StundentInterest_EnforceMaxRowsByStudent
+END
+GO
+
+CREATE TRIGGER TR_StundentInterest_EnforceMaxRowsByStudent ON StudentInterest 
+	AFTER INSERT, UPDATE   
+AS
+BEGIN
+	DECLARE @maxAuthorizedInterestCount TINYINT = 5
+	DECLARE @maxStudentInterestCount INT
+	SELECT TOP 1 @maxStudentInterestCount = COUNT(InterestCatalog_Id)
+	FROM StudentInterest
+	GROUP BY Student_Id
+	ORDER BY COUNT(InterestCatalog_Id) DESC
+
+	IF (@maxStudentInterestCount > @maxAuthorizedInterestCount)
+	BEGIN
+		RAISERROR (N'Too much interest by student', 1, 1);  
 		ROLLBACK TRANSACTION
+	END
 END
 GO
 
